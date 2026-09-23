@@ -12,7 +12,8 @@ axiosInstance.interceptors.request.use((config) => {
     return config;
 });
 
-axiosInstance.interceptors.response.use((response) => response, 
+axiosInstance.interceptors.response.use(
+(response) => response, 
 (error) => {
     if(error.response) {
         console.error("API Error:", error.response.status, error.response.data);
