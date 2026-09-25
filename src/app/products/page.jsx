@@ -2,10 +2,18 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { getProducts } from "@/lib/api/products";
 
 export default function ProductsPage() {
     const router = useRouter();
     const [checking, setChecking] = useState(true);
+
+    const [products, setProducts] = useState([]);
+    const [total, setTotal] = useState(0);
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(false);
 
     useEffect(() => {
         const token = localStorage.getItem("token");
@@ -15,6 +23,27 @@ export default function ProductsPage() {
             setChecking(false);
         }
     }, [router]);
+
+    useEffect(() => {
+        if(checking) return;
+
+        const fetchProducts = async () => {
+            setLoading(true);
+            setError(false);
+            try {
+                const skip = (page-1) * pageSize;
+                const data = await getProducts(pageSize, skip);
+                setProducts(data.products);
+                setTotal(data.total);
+            } catch (err) {
+                setError(true);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchProducts();
+    }, [checking, page, pageSize]);
 
     const handleLogout = () => {
         localStorage.removeItem("token");
@@ -29,6 +58,10 @@ export default function ProductsPage() {
         )
     }
 
+    const totalPages = Math.ceil(total / pageSize);
+    const showingFrom = total === 0 ? 0 : (page-1) * pageSize + 1;
+    const showingTo = Math.min(page * pageSize, total);
+
     return (
         <div className="min-h-screen bg-gray-100 p-6">
             <div className="mb-6 flex items-center justify-between">
@@ -39,7 +72,96 @@ export default function ProductsPage() {
 
                 >Logout</button>
             </div>
-            <p className="text-gray-600">Product list will go here.</p>
-        </div>
+            {!loading && !error && products.length === 0 && (
+                    <p className="text-gray-600">No products found.</p>
+                )}
+
+            {!loading && !error && products.length > 0 && (       
+                <>
+          <div className="hidden overflow-x-auto rounded bg-white shadow md:block">
+            <table className="w-full text-left text-sm text-gray-700">
+              <thead className="bg-gray-200 text-gray-800">
+                <tr>
+                  <th className="p-3">Image</th>
+                  <th className="p-3">Title</th>
+                  <th className="p-3">Category</th>
+                  <th className="p-3">Price</th>
+                  <th className="p-3">Rating</th>
+                  <th className="p-3">Stock</th>
+                </tr>
+              </thead>
+              <tbody>
+                {products.map((p) => (
+                  <tr key={p.id} className="border-t">
+                    <td className="p-3">
+                      <img src={p.thumbnail} alt={p.title} className="h-12 w-12 object-cover" />
+                    </td>
+                    <td className="p-3">{p.title}</td>
+                    <td className="p-3">{p.category}</td>
+                    <td className="p-3">${p.price}</td>
+                    <td className="p-3">{p.rating}</td>
+                    <td className="p-3">{p.stock}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:hidden">
+            {products.map((p) => (
+              <div key={p.id} className="rounded bg-white p-4 shadow">
+                <img src={p.thumbnail} alt={p.title} className="mb-2 h-32 w-full object-cover" />
+                <h2 className="font-semibold text-gray-800">{p.title}</h2>
+                <p className="text-sm text-gray-600">{p.category}</p>
+                <p className="text-sm text-gray-600">
+                  ${p.price} • ⭐ {p.rating} • Stock: {p.stock}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
+            <p className="text-sm text-gray-600">
+              Showing {showingFrom}–{showingTo} of {total}
+            </p>
+
+            <div className="flex items-center gap-2">
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setPage(1);
+                }}
+                className="rounded border border-gray-300 p-1 text-gray-900"
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="rounded bg-blue-600 px-3 py-1 text-white disabled:opacity-40"
+              >
+                Previous
+              </button>
+
+              <span className="text-sm text-gray-700">
+                Page {page} of {totalPages}
+              </span>
+
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="rounded bg-blue-600 px-3 py-1 text-white disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        </>
+            )}
+    </div>
     )
 }
