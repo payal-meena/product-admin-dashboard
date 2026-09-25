@@ -1,19 +1,33 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { getProducts } from "@/lib/api/products";
 
 export default function ProductsPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const [checking, setChecking] = useState(true);
 
     const [products, setProducts] = useState([]);
     const [total, setTotal] = useState(0);
-    const [page, setPage] = useState(1);
-    const [pageSize, setPageSize] = useState(10);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
+
+    const rawPage = parseInt(searchParams.get("page"), 10);
+    const page = isNaN(rawPage) || rawPage < 1 ? 1 : rawPage;
+
+    const rawPageSize = parseInt(searchParams.get("pageSize"), 10);
+    const validSizes = [10,20,50];
+    const pageSize = validSizes.includes(rawPageSize) ? rawPageSize : 10;
+
+    const updateParams = (updates) => {
+      const params = new URLSearchParams(searchParams.toString());
+      Object.entries(updates).forEach(([key, value]) => {
+        params.set(key, value);
+      });
+      router.push(`/products?${params.toString()}`);
+    };
 
     useEffect(() => {
         const token = localStorage.getItem("token");
@@ -35,6 +49,11 @@ export default function ProductsPage() {
                 const data = await getProducts(pageSize, skip);
                 setProducts(data.products);
                 setTotal(data.total);
+
+                const maxPage = Math.max(1, Math.ceil(data.total / pageSize ));
+                if( page > maxPage ) {
+                  updateParams({ page: maxPage });
+                }
             } catch (err) {
                 setError(true);
             } finally {
@@ -128,10 +147,7 @@ export default function ProductsPage() {
             <div className="flex items-center gap-2">
               <select
                 value={pageSize}
-                onChange={(e) => {
-                  setPageSize(Number(e.target.value));
-                  setPage(1);
-                }}
+                onChange={(e) => updateParams({ pageSize: Number(e.target.value) , page: 1})}
                 className="rounded border border-gray-300 p-1 text-gray-900"
               >
                 <option value={10}>10</option>
@@ -140,7 +156,7 @@ export default function ProductsPage() {
               </select>
 
               <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                onClick={() => updateParams({ page: Math.max(1, page-1) })}
                 disabled={page === 1}
                 className="rounded bg-blue-600 px-3 py-1 text-white disabled:opacity-40"
               >
@@ -152,7 +168,7 @@ export default function ProductsPage() {
               </span>
 
               <button
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                onClick={() => updateParams({ page: Math.min(totalPages, page + 1)})}
                 disabled={page === totalPages}
                 className="rounded bg-blue-600 px-3 py-1 text-white disabled:opacity-40"
               >
