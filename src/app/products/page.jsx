@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { getProducts } from "@/lib/api/products";
+import { getProducts, searchProducts } from "@/lib/api/products";
 
 export default function ProductsPage() {
     const router = useRouter();
@@ -13,6 +13,9 @@ export default function ProductsPage() {
     const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
+
+    const [searchInput, setSearchInput] = useState(searchParams.get("q") || "");
+    const search = searchParams.get("q") || "";
 
     const rawPage = parseInt(searchParams.get("page"), 10);
     const page = isNaN(rawPage) || rawPage < 1 ? 1 : rawPage;
@@ -41,12 +44,16 @@ export default function ProductsPage() {
     useEffect(() => {
         if(checking) return;
 
+        const controller = new AbortController();
+
         const fetchProducts = async () => {
             setLoading(true);
             setError(false);
             try {
                 const skip = (page-1) * pageSize;
-                const data = await getProducts(pageSize, skip);
+                const data = search
+                  ? await searchProducts(search, pageSize, skip, controller.signal)
+                  : await getProducts(pageSize, skip, controller.signal);
                 setProducts(data.products);
                 setTotal(data.total);
 
@@ -55,15 +62,28 @@ export default function ProductsPage() {
                   updateParams({ page: maxPage });
                 }
             } catch (err) {
-                setError(true);
+              if (err.name !== "CanceledError" && err.code !== "ERR_CANCELED") {
+                      setError(true);
+              }        
             } finally {
                 setLoading(false);
             }
         };
 
         fetchProducts();
-    }, [checking, page, pageSize]);
 
+        return () => controller.abort()   ;
+       }, [checking, page, pageSize, search]);
+
+    useEffect(() => {
+  const timer = setTimeout(() => {
+    if (searchInput !== search) {
+      updateParams({ q: searchInput, page: 1 });
+    }
+  }, 500);
+
+  return () => clearTimeout(timer);
+}, [searchInput]);
     const handleLogout = () => {
         localStorage.removeItem("token");
         router.push("/");
@@ -85,6 +105,13 @@ export default function ProductsPage() {
         <div className="min-h-screen bg-gray-100 p-6">
             <div className="mb-6 flex items-center justify-between">
                 <h1 className="text-2xl font-semibold text-gray-800">Products</h1>
+                <input
+                  type="text"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  placeholder="Search products..."
+                  className="mb-4 w-full max-w-md rounded border border-gray-300 p-2 text-gray-900"
+                />
                 <button
                     onClick={handleLogout}
                     className="bg-red-600 text-white px-4 py-2 hover:bg-red-700"
